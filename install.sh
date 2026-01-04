@@ -51,6 +51,8 @@ SCRIPTS=(
   "after-edit.sh"
   "stop-hook.sh"
   "spawn-cloud-agent.sh"
+  "watch-cloud-agent.sh"
+  "ralph-loop.sh"
   "test-cloud-api.sh"
 )
 
@@ -374,6 +376,9 @@ else
   echo "  echo '{\"cursor_api_key\": \"your-key\"}' > ~/.cursor/ralph-config.json"
 fi
 echo ""
-echo "Test Cloud API: ./.cursor/ralph-scripts/test-cloud-api.sh"
+echo "Commands:"
+echo "  Start loop:    ./.cursor/ralph-scripts/ralph-loop.sh"
+echo "  Watch agent:   ./.cursor/ralph-scripts/watch-cloud-agent.sh <agent-id>"
+echo "  Test API:      ./.cursor/ralph-scripts/test-cloud-api.sh"
 echo "Learn more: https://ghuntley.com/ralph/"
 echo "═══════════════════════════════════════════════════════════════════"
