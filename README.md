@@ -72,27 +72,21 @@ This creates two problems:
 
 ## Quick Start
 
-### 1. Clone/Install Ralph
+### 1. Install Ralph
 
 ```bash
-# Option A: Clone the repo
-git clone https://github.com/agrimsingh/ralph-wiggum-cursor.git
-cd ralph-wiggum-cursor
-
-# Option B: Install into existing project
 cd your-project
 curl -fsSL https://raw.githubusercontent.com/agrimsingh/ralph-wiggum-cursor/main/install.sh | bash
-```
-
-### 2. Initialize (if using in existing project)
-
-```bash
-./scripts/init-ralph.sh
 ```
 
 This creates:
 ```
 your-project/
+├── .cursor/ralph-scripts/      # Ralph scripts
+│   ├── ralph-loop.sh           # Main entry point
+│   ├── stream-parser.sh        # Token tracking
+│   ├── ralph-common.sh         # Shared config
+│   └── init-ralph.sh           # Re-initialize if needed
 ├── .ralph/                     # State files (tracked in git)
 │   ├── progress.md             # Agent updates: what's done
 │   ├── guardrails.md           # Lessons learned (Signs)
@@ -101,7 +95,7 @@ your-project/
 └── RALPH_TASK.md               # Your task definition
 ```
 
-### 3. Define Your Task
+### 2. Define Your Task
 
 Edit `RALPH_TASK.md`:
 
@@ -130,12 +124,10 @@ Build a REST API with user management.
 
 **Important:** Use `[ ]` checkboxes. Ralph tracks completion by counting unchecked boxes.
 
-### 4. Start the Loop
+### 3. Start the Loop
 
 ```bash
-./scripts/ralph-loop.sh
-# or
-./scripts/ralph-loop.sh /path/to/your/project
+./.cursor/ralph-scripts/ralph-loop.sh
 ```
 
 Ralph will:
@@ -146,7 +138,7 @@ Ralph will:
 5. At 80k tokens: rotate to fresh context
 6. Repeat until all `[ ]` are `[x]` (or max 20 iterations)
 
-### 5. Monitor Progress
+### 4. Monitor Progress
 
 ```bash
 # Watch activity in real-time
@@ -268,7 +260,7 @@ When gutter is detected:
 
 ## Configuration
 
-Edit thresholds in `scripts/ralph-loop.sh`:
+Edit thresholds in `.cursor/ralph-scripts/ralph-loop.sh`:
 
 ```bash
 MAX_ITERATIONS=20       # Max rotations before giving up
@@ -280,9 +272,9 @@ ROTATE_THRESHOLD=80000  # Tokens: force rotation
 
 | Command | Description |
 |---------|-------------|
-| `./scripts/ralph-loop.sh` | Start autonomous loop |
-| `./scripts/ralph-loop.sh /path/to/project` | Start loop in specific project |
-| `./scripts/init-ralph.sh` | Initialize Ralph in current directory |
+| `./.cursor/ralph-scripts/ralph-loop.sh` | Start autonomous loop |
+| `./.cursor/ralph-scripts/ralph-loop.sh /path/to/project` | Start loop in specific project |
+| `./.cursor/ralph-scripts/init-ralph.sh` | Re-initialize Ralph state |
 | `tail -f .ralph/activity.log` | Monitor progress in real-time |
 
 ## Troubleshooting
