@@ -11,6 +11,11 @@
         "command": "./scripts/before-read.sh"
       }
     ],
+    "beforeShellExecution": [
+      {
+        "command": "./scripts/before-shell.sh"
+      }
+    ],
     "afterFileEdit": [
       {
         "command": "./scripts/after-edit.sh"

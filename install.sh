@@ -32,6 +32,7 @@ echo "📥 Downloading Ralph scripts..."
 SCRIPTS=(
   "before-prompt.sh"
   "before-read.sh"
+  "before-shell.sh"
   "after-edit.sh"
   "stop-hook.sh"
   "spawn-cloud-agent.sh"
