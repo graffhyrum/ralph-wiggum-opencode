@@ -4,6 +4,15 @@ A Cursor Skill implementing [Geoffrey Huntley's Ralph Wiggum technique](https://
 
 > "That's the beauty of Ralph - the technique is deterministically bad in an undeterministic world."
 
+## Quick Start
+
+```bash
+# In your project directory
+curl -fsSL https://raw.githubusercontent.com/agrimsingh/ralph-wiggum-cursor/main/install.sh | bash
+```
+
+That's it. Edit `RALPH_TASK.md`, open Cursor, and tell it to work on the Ralph task.
+
 ## What is Ralph?
 
 Ralph is a technique for autonomous AI development. In its purest form, it's a loop:
@@ -23,277 +32,190 @@ This is the core insight. LLM context is like memory:
 - **There is no `free()`** - you cannot selectively clear context
 - The only way to free context is to **start a new conversation**
 
-Most implementations (including the Claude Code plugin) miss this. They keep the same context running, just blocking exit. Context accumulates, gets polluted, and performance degrades.
+Most implementations miss this. They keep the same context running, just blocking exit. Context accumulates, gets polluted, and performance degrades.
 
-## Two Modes: True Ralph vs Assisted Ralph
-
-This skill supports two modes based on your setup:
+## Two Modes
 
 ### 🌩️ Cloud Mode (True Ralph)
 
 **Automatic malloc/free via Cloud Agent API**
 
-When context fills up:
-1. Stop hook detects critical context level
-2. Commits current progress to git
-3. **Automatically spawns a Cloud Agent** with fresh context
-4. Cloud Agent reads state from files and continues
-5. True malloc/free cycle - fully autonomous
+When context fills up, Ralph automatically spawns a Cloud Agent with fresh context. True autonomous operation.
 
-**Requirements:**
-- Cursor API key ([get one here](https://cursor.com/dashboard?tab=integrations))
-- GitHub repository (Cloud Agents work on GitHub repos)
+**Enable with:**
+```bash
+export CURSOR_API_KEY='your-key'  # Get from cursor.com/dashboard
+```
 
 ### 💻 Local Mode (Assisted Ralph)
 
 **Human-in-the-loop malloc/free**
 
-When context fills up:
-1. Stop hook detects critical context level
-2. **Instructs you** to start a new conversation
-3. You start a new conversation (this frees context)
-4. New conversation reads state from files and continues
-5. Human-triggered malloc/free cycle
+When context fills up, Ralph tells you to start a new conversation. You trigger the context reset manually.
 
-**Requirements:**
-- None - works with any project
+**Works out of the box** - no API key needed.
 
 ## Installation
 
+### One-liner (recommended)
+
 ```bash
-# Clone the skill
-gh repo clone agrimsingh/ralph-wiggum-cursor
-
-# In your project directory, run the init script
-/path/to/ralph-wiggum-cursor/scripts/init-ralph.sh
+curl -fsSL https://raw.githubusercontent.com/agrimsingh/ralph-wiggum-cursor/main/install.sh | bash
 ```
 
-The init script will:
-- Ask if you want to enable Cloud Mode
-- Set up the `.ralph/` state directory
-- Install hooks to `.cursor/`
-- Create a `RALPH_TASK.md` template
+This installs everything directly into your project:
+- `.cursor/hooks.json` - Hook configuration
+- `.cursor/ralph-scripts/` - Hook scripts
+- `.ralph/` - State tracking
+- `RALPH_TASK.md` - Task template
 
-## Configuration
+### Manual
 
-### Cloud Mode Setup
-
-**Option 1: Environment Variable**
 ```bash
-export CURSOR_API_KEY='your-key-here'
-```
-
-**Option 2: Project Config** (`.cursor/ralph-config.json` - gitignored)
-```json
-{
-  "cursor_api_key": "your-key-here",
-  "cloud_agent_enabled": true
-}
-```
-
-**Option 3: Global Config** (`~/.cursor/ralph-config.json`)
-```json
-{
-  "cursor_api_key": "your-key-here"
-}
+git clone https://github.com/agrimsingh/ralph-wiggum-cursor.git
+cp -r ralph-wiggum-cursor/scripts .cursor/ralph-scripts
+cp ralph-wiggum-cursor/hooks.json .cursor/
+# Update paths in hooks.json: ./scripts/ → ./.cursor/ralph-scripts/
+mkdir .ralph
+# Create state files (see install.sh for contents)
 ```
 
 ## Usage
 
 ### 1. Define Your Task
 
-Create `RALPH_TASK.md` in your project root:
+Edit `RALPH_TASK.md`:
 
 ```markdown
 ---
-task: Build a REST API for task management
+task: Build a REST API
 completion_criteria:
   - All CRUD endpoints working
-  - Tests passing with >80% coverage
-  - API documentation complete
-max_iterations: 50
+  - Tests passing
+  - Documentation complete
+max_iterations: 20
 ---
 
-## Requirements
+# Task: REST API
 
-Build a task management API with CRUD operations...
+## Requirements
+...
 
 ## Success Criteria
-
-The task is complete when ALL of the following are true:
-1. [ ] All endpoints implemented
-2. [ ] Tests passing
-3. [ ] Documentation complete
+1. [ ] Endpoint X works
+2. [ ] Endpoint Y works
+3. [ ] Tests pass
 ```
 
-### 2. Start a Ralph Loop
+### 2. Start Ralph
 
-Open a new Cursor conversation and say:
+Open Cursor, new conversation:
 
-> "Start working on the Ralph task defined in RALPH_TASK.md"
+> "Work on the Ralph task in RALPH_TASK.md"
 
-### 3. Let Ralph Iterate
+### 3. Let It Run
 
 Ralph will:
-- Read the task and current progress from files
-- Work on the next incomplete item
+- Read the task and progress files
+- Work on incomplete criteria
 - Update `.ralph/progress.md`
 - Commit checkpoints
-- Continue until completion or context limit
+- Handle context limits (Cloud or Local mode)
 
-### 4. When Context Fills Up
+### 4. Context Limit Reached
 
-**Cloud Mode:** Automatically spawns Cloud Agent, continues autonomously
+**Cloud Mode:** Automatically spawns new Cloud Agent
 
-**Local Mode:** You'll see:
+**Local Mode:** Shows:
 ```
 ═══════════════════════════════════════════════════════════════════
 ⚠️  RALPH: CONTEXT LIMIT REACHED (malloc full)
 ═══════════════════════════════════════════════════════════════════
 
-To continue with fresh context (complete the malloc/free cycle):
-
+To continue with fresh context:
   1. Your progress is saved in .ralph/progress.md
   2. START A NEW CONVERSATION in Cursor
-  3. Tell Cursor: 'Continue the Ralph task from iteration N'
-
-The new conversation = fresh context = malloc freed
+  3. Say: "Continue the Ralph task from iteration N"
 ```
 
 ## How It Works
-
-### State Files
-
-Ralph tracks everything in `.ralph/`:
-
-| File | Purpose |
-|------|---------|
-| `state.md` | Current iteration, status, mode |
-| `progress.md` | What's been accomplished (survives context reset) |
-| `guardrails.md` | "Signs" - lessons learned from failures |
-| `context-log.md` | What's been loaded into context (malloc tracking) |
-| `failures.md` | Failure patterns for gutter detection |
-
-### Hooks
-
-| Hook | Purpose |
-|------|---------|
-| `beforeSubmitPrompt` | Inject guardrails, track iteration |
-| `beforeReadFile` | Track context allocations (malloc) |
-| `afterFileEdit` | Log progress, detect thrashing |
-| `stop` | Evaluate completion, trigger malloc/free cycle |
 
 ### The malloc/free Cycle
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ITERATION N                                   │
-│  Context: [prompt] [file1] [file2] [errors] [attempts]          │
-│  Status: Getting full...                                         │
+│ ITERATION N - Context filling up                                │
+│ [prompt] [file1] [file2] [errors] [attempts] [more stuff...]   │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
-                    stop-hook detects critical
+                    Context limit detected
                               │
               ┌───────────────┴───────────────┐
-              │                               │
               ▼                               ▼
-      ┌──────────────┐               ┌──────────────┐
-      │ CLOUD MODE   │               │ LOCAL MODE   │
-      │              │               │              │
-      │ Spawn Cloud  │               │ Tell human   │
-      │ Agent auto-  │               │ to start new │
-      │ matically    │               │ conversation │
-      └──────────────┘               └──────────────┘
+       Cloud Mode                       Local Mode
+    Spawn Cloud Agent              Tell human to start
+      automatically                 new conversation
               │                               │
               └───────────────┬───────────────┘
-                              │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ITERATION N+1                                 │
-│  Context: [prompt] ← FRESH! Only loads what's needed            │
-│  Reads: .ralph/progress.md to know what's done                  │
-│  Status: Healthy, continues work                                 │
+│ ITERATION N+1 - Fresh context                                   │
+│ [prompt] ← Only loads what's needed                            │
+│ Reads .ralph/progress.md to know what's done                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Guardrails ("Signs")
+### State Files
 
-When Ralph makes a mistake, a "sign" is added:
+| File | Purpose |
+|------|---------|
+| `.ralph/state.md` | Current iteration, status |
+| `.ralph/progress.md` | What's been accomplished (survives context reset) |
+| `.ralph/guardrails.md` | "Signs" - lessons from failures |
+| `.ralph/context-log.md` | Tracks context allocations |
+| `.ralph/failures.md` | Failure patterns for gutter detection |
 
-```markdown
-### Sign: Validate Before Trust
-- **Trigger**: When receiving external input
-- **Instruction**: Always validate and sanitize
-- **Added after**: Iteration 3 - SQL injection found
+### Hooks
+
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| `beforeSubmitPrompt` | Before each message | Inject guardrails |
+| `beforeReadFile` | File read | Track malloc |
+| `afterFileEdit` | File edited | Log progress |
+| `stop` | Conversation end | Manage iterations |
+
+## Cloud Mode Setup
+
+Get your API key from [cursor.com/dashboard](https://cursor.com/dashboard?tab=integrations)
+
+**Option 1: Environment variable**
+```bash
+export CURSOR_API_KEY='key-here'
 ```
 
-Signs accumulate and are injected into future iterations.
+**Option 2: Global config** (`~/.cursor/ralph-config.json`)
+```json
+{"cursor_api_key": "key-here"}
+```
 
-### Gutter Detection
-
-Ralph detects when it's stuck:
-- Same file edited 5+ times without progress
-- Same error repeated 3+ times
-- Context approaching limits
-
-When detected, Ralph triggers the malloc/free cycle.
+**Option 3: Project config** (`.cursor/ralph-config.json`)
+```json
+{"cursor_api_key": "key-here", "cloud_agent_enabled": true}
+```
 
 ## Completion Signals
 
-Tell Ralph you're done or stuck:
+Tell Ralph when you're done or stuck:
 
 - `RALPH_COMPLETE: All criteria satisfied` - Task finished
-- `RALPH_GUTTER: Need fresh context` - Stuck, need fresh start
-
-## Best Practices
-
-### Do
-
-- Define clear, verifiable completion criteria
-- Let Ralph fail and learn (add signs)
-- Trust the files, not the context
-- Start fresh when stuck (or let Cloud Mode do it)
-
-### Don't
-
-- Mix multiple unrelated tasks
-- Push context to limits
-- Ignore gutter warnings
-- Fight the malloc/free cycle
-
-## File Structure
-
-```
-ralph-wiggum-cursor/
-├── SKILL.md                    # Main skill definition
-├── README.md                   # This file
-├── hooks.json                  # Cursor hooks configuration
-├── scripts/
-│   ├── init-ralph.sh          # Initialize Ralph in a project
-│   ├── before-prompt.sh       # Inject guardrails
-│   ├── before-read.sh         # Track context allocations
-│   ├── after-edit.sh          # Log progress
-│   ├── stop-hook.sh           # Manage iterations + malloc/free
-│   └── spawn-cloud-agent.sh   # Cloud Agent integration
-├── references/
-│   ├── CONTEXT_ENGINEERING.md # malloc/free deep dive
-│   └── GUARDRAILS.md          # How to write signs
-└── assets/
-    ├── RALPH_TASK_TEMPLATE.md # Task file template
-    └── RALPH_TASK_EXAMPLE.md  # Example task
-```
+- `RALPH_GUTTER: Need fresh context` - Stuck in failure loop
 
 ## Learn More
 
 - [Original Ralph technique](https://ghuntley.com/ralph/) - Geoffrey Huntley
-- [Context engineering](https://ghuntley.com/gutter/) - Autoregressive failure
-- [malloc/free metaphor](https://ghuntley.com/allocations/) - Context as memory
-- [Deliberate practice](https://ghuntley.com/play/) - Tuning Ralph
-
-## Credits
-
-Based on Geoffrey Huntley's Ralph Wiggum technique. This implementation adapts the methodology for Cursor using Skills and Hooks, with Cloud Agent integration for true autonomous operation.
+- [Context as memory](https://ghuntley.com/allocations/) - The malloc/free metaphor
+- [The gutter](https://ghuntley.com/gutter/) - Autoregressive failure
 
 ## License
 
