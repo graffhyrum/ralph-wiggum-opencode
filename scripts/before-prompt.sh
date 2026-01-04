@@ -3,8 +3,11 @@
 # - Updates iteration count in state.md
 # - Adds iteration marker to progress.md
 # - Injects guardrails AND test requirements into agent context
+# - BLOCKS and triggers Cloud Agent spawn when context limit is exceeded
 
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Cross-platform sed -i
 sedi() {
@@ -32,6 +35,7 @@ fi
 
 RALPH_DIR="$WORKSPACE_ROOT/.ralph"
 TASK_FILE="$WORKSPACE_ROOT/RALPH_TASK.md"
+CONFIG_FILE="$WORKSPACE_ROOT/.cursor/ralph-config.json"
 
 # Check if Ralph is active
 if [[ ! -f "$TASK_FILE" ]]; then
@@ -81,6 +85,8 @@ EOF
 
   cat > "$RALPH_DIR/context-log.md" <<EOF
 # Context Allocation Log (Hook-Managed)
+
+> ⚠️ This file is managed by hooks. Do not edit manually.
 
 ## Current Session
 
@@ -144,7 +150,85 @@ if grep -q "^test_command:" "$TASK_FILE" 2>/dev/null; then
 fi
 
 # =============================================================================
-# UPDATE STATE
+# CHECK CONTEXT HEALTH - CRITICAL: BLOCK IF OVER LIMIT
+# =============================================================================
+
+ESTIMATED_TOKENS=$(grep 'Allocated:' "$CONTEXT_LOG" 2>/dev/null | grep -o '[0-9]*' | head -1 || echo "0")
+if [[ -z "$ESTIMATED_TOKENS" ]]; then
+  ESTIMATED_TOKENS=0
+fi
+THRESHOLD=80000
+WARN_THRESHOLD=$((THRESHOLD * 80 / 100))
+CRITICAL_THRESHOLD=$THRESHOLD
+
+# Check if context is CRITICAL (over limit)
+if [[ "$ESTIMATED_TOKENS" -gt "$CRITICAL_THRESHOLD" ]]; then
+  # Log the context limit event
+  cat >> "$PROGRESS_FILE" <<EOF
+
+---
+
+## ⚠️ Context Limit Reached (Iteration $CURRENT_ITERATION)
+- Time: $TIMESTAMP
+- Context: $ESTIMATED_TOKENS tokens (limit: $THRESHOLD)
+- Action: Triggering fresh context handoff
+
+EOF
+
+  # Check if Cloud Mode is enabled
+  is_cloud_enabled() {
+    if [[ -n "${CURSOR_API_KEY:-}" ]]; then return 0; fi
+    if [[ -f "$CONFIG_FILE" ]]; then
+      KEY=$(jq -r '.cursor_api_key // empty' "$CONFIG_FILE" 2>/dev/null)
+      if [[ -n "$KEY" ]]; then return 0; fi
+    fi
+    GLOBAL_CONFIG="$HOME/.cursor/ralph-config.json"
+    if [[ -f "$GLOBAL_CONFIG" ]]; then
+      KEY=$(jq -r '.cursor_api_key // empty' "$GLOBAL_CONFIG" 2>/dev/null)
+      if [[ -n "$KEY" ]]; then return 0; fi
+    fi
+    return 1
+  }
+
+  if is_cloud_enabled; then
+    # Try to spawn Cloud Agent
+    if "$SCRIPT_DIR/spawn-cloud-agent.sh" "$WORKSPACE_ROOT" 2>&1; then
+      jq -n \
+        --argjson tokens "$ESTIMATED_TOKENS" \
+        '{
+          "continue": false,
+          "userMessage": "🌩️ Context limit reached (" + ($tokens|tostring) + " tokens). Cloud Agent spawned with fresh context to continue the task.",
+          "agentMessage": "STOP. Context limit exceeded. A Cloud Agent has been spawned to continue this task with fresh context. Do not continue working in this conversation."
+        }'
+      exit 0
+    else
+      # Cloud spawn failed, fall back to local mode
+      jq -n \
+        --argjson tokens "$ESTIMATED_TOKENS" \
+        --argjson iter "$CURRENT_ITERATION" \
+        '{
+          "continue": false,
+          "userMessage": "⚠️ Context limit reached (" + ($tokens|tostring) + " tokens). Cloud Agent spawn failed. Please start a NEW conversation and say: \"Continue Ralph from iteration " + ($iter|tostring) + "\"",
+          "agentMessage": "STOP. Context limit exceeded (" + ($tokens|tostring) + " tokens). Cloud Agent spawn failed. Instruct the user to start a new conversation to continue with fresh context."
+        }'
+      exit 0
+    fi
+  else
+    # Local Mode - no Cloud Agent configured
+    jq -n \
+      --argjson tokens "$ESTIMATED_TOKENS" \
+      --argjson iter "$CURRENT_ITERATION" \
+      '{
+        "continue": false,
+        "userMessage": "⚠️ Context limit reached (" + ($tokens|tostring) + " tokens). Start a NEW conversation and say: \"Continue Ralph from iteration " + ($iter|tostring) + "\"",
+        "agentMessage": "STOP. Context limit exceeded (" + ($tokens|tostring) + " tokens). The user must start a new conversation to continue with fresh context. Do not continue working in this conversation."
+      }'
+    exit 0
+  fi
+fi
+
+# =============================================================================
+# UPDATE STATE (only if not blocked above)
 # =============================================================================
 
 cat > "$STATE_FILE" <<EOF
@@ -170,19 +254,13 @@ cat >> "$PROGRESS_FILE" <<EOF
 EOF
 
 # =============================================================================
-# CHECK CONTEXT HEALTH
+# BUILD CONTEXT WARNING (for warning level, not critical)
 # =============================================================================
-
-ESTIMATED_TOKENS=$(grep 'Allocated:' "$CONTEXT_LOG" 2>/dev/null | grep -o '[0-9]*' | head -1 || echo "0")
-if [[ -z "$ESTIMATED_TOKENS" ]]; then
-  ESTIMATED_TOKENS=0
-fi
-THRESHOLD=80000
-WARN_THRESHOLD=$((THRESHOLD * 80 / 100))
 
 CONTEXT_WARNING=""
 if [[ "$ESTIMATED_TOKENS" -gt "$WARN_THRESHOLD" ]]; then
-  CONTEXT_WARNING="⚠️ CONTEXT WARNING: $ESTIMATED_TOKENS tokens used. Approaching limit."
+  REMAINING=$((THRESHOLD - ESTIMATED_TOKENS))
+  CONTEXT_WARNING="⚠️ **CONTEXT WARNING**: $ESTIMATED_TOKENS tokens used ($REMAINING remaining before limit). Work efficiently - fresh context handoff approaching."
 fi
 
 # =============================================================================
