@@ -149,7 +149,7 @@ cat > .ralph/context-log.md <<EOF
 ## Estimated Context Usage
 
 - Allocated: 0 tokens
-- Threshold: 80000 tokens (warn at 80%)
+- Threshold: 60000 tokens (warn at 80%)
 - Status: 🟢 Healthy
 
 EOF
