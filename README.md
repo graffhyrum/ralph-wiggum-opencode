@@ -266,6 +266,7 @@ Edit thresholds in `.opencode/ralph-scripts/ralph-loop.sh`:
 MAX_ITERATIONS=20       # Max rotations before giving up
 WARN_THRESHOLD=70000    # Tokens: send wrapup warning
 ROTATE_THRESHOLD=80000  # Tokens: force rotation
+DEFAULT_MODEL="zen"     # Default free model
 ```
 
 ## Commands

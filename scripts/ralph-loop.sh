@@ -26,7 +26,7 @@ WARN_THRESHOLD=70000    # Tokens: send wrapup warning
 ROTATE_THRESHOLD=80000  # Tokens: force rotation
 
 # Model selection (override with RALPH_MODEL env var)
-DEFAULT_MODEL="opus-4.5-thinking"
+DEFAULT_MODEL="zen"
 MODEL="${RALPH_MODEL:-$DEFAULT_MODEL}"
 
 # =============================================================================
@@ -400,7 +400,7 @@ main() {
   echo "The agent will be rotated when context fills up (~80k tokens)."
   echo ""
   echo "To use a different model, set RALPH_MODEL:"
-  echo "  RALPH_MODEL=claude-opus-4-20250514 ./ralph-loop.sh"
+  echo "  RALPH_MODEL=deepseek-v3 ./ralph-loop.sh"
   echo ""
   read -p "Start Ralph loop? [y/N] " -n 1 -r
   echo ""
